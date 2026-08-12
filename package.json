@@ -1,0 +1,37 @@
+{
+  "name": "ai-text-hygiene",
+  "version": "0.1.0",
+  "description": "Clean up invisible AI text artifacts: strip zero-width/format Unicode and fold typographic AI tells (em dashes, curly quotes) to plain, human-looking, ATS-safe text. Zero dependencies.",
+  "type": "module",
+  "main": "src/index.mjs",
+  "exports": "./src/index.mjs",
+  "bin": {
+    "ai-text-hygiene": "bin/cli.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "test": "node test/test.mjs"
+  },
+  "keywords": [
+    "unicode",
+    "sanitize",
+    "text",
+    "ai",
+    "llm",
+    "zero-width",
+    "homoglyph",
+    "ats",
+    "cleanup",
+    "hygiene"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  }
+}
