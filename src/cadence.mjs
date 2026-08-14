@@ -9,9 +9,9 @@
 // This is a WRITING-QUALITY signal, not a detector and not an evasion tool. It
 // tells you your lines are all the same length; it does not claim to beat any
 // AI-detection system, because varying rhythm is simply better writing, not a
-// trick. Small samples are reported as "insufficient", on purpose: a dozen lines
-// cannot support a confident rhythm judgment, and pretending otherwise is the
-// "0% conversion from twelve applications" mistake in a different costume.
+// trick. Small samples are reported as "insufficient", on purpose: a handful of
+// lines cannot support a confident rhythm judgment, and treating one as reliable
+// is reading noise as signal.
 
 // Split text into UNITS. Each non-empty line contributes at least one unit (so a
 // bullet list is one unit per bullet, even without terminal punctuation), and a
