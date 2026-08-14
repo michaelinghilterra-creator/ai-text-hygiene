@@ -84,6 +84,34 @@ This is a **writing-quality signal, not a detector.** It flags monotony so you (
 a model) can vary the rhythm. It does not claim to beat any AI-detection system,
 because varied rhythm is simply better writing, not a trick.
 
+### Style (word choice and framing)
+
+Cadence covers rhythm; this covers the other visible tells: overused AI vocabulary
+("delve," "tapestry," "leverage," "seamless"), filler, cliche or sycophantic
+openers, and bullet overload.
+
+```js
+import { analyzeStyle, stripRedundantFiller } from 'ai-text-hygiene';
+
+analyzeStyle(text).score;   // 0-100 plainness score (higher = plainer)
+analyzeStyle(text).flags;   // [{ type, severity, term, message }]
+stripRedundantFiller('In order to win we meet on a daily basis.');
+// => 'To win we meet daily.'
+```
+
+- `analyzeStyle(text, opts)` — **detect only**, never rewrites. Returns
+  `{ score, flags, counts, density, insufficient }`. Words that are legitimate in
+  technical writing (leverage, robust, streamline) are flagged as **low severity**,
+  not penalized hard. `opts.expectBullets` suppresses the bullet-overload flag for
+  documents where bullets are expected (a resume). Under ~30 words it returns
+  `insufficient`.
+- `stripRedundantFiller(text)` — the **one safe auto-fix**: a short, strict list of
+  phrases whose replacement is correct in essentially every context ("in order
+  to" -> "to," "due to the fact that" -> "because"). Everything judgment-heavy
+  stays flag-only, because a blind find-and-replace on word choice homogenizes and
+  breaks text.
+- `formatStyleReport(report)` — a printable summary.
+
 ### CLI
 
 ```bash
@@ -91,6 +119,8 @@ npx ai-text-hygiene messy.txt > clean.txt      # stdout
 npx ai-text-hygiene --write notes.md           # rewrite in place
 cat draft.txt | npx ai-text-hygiene --conservative
 npx ai-text-hygiene --cadence resume.md        # rhythm report, does not modify
+npx ai-text-hygiene --style cover-letter.md    # word-choice report, does not modify
+cat draft.txt | npx ai-text-hygiene --strip-filler   # apply only the safe swaps
 ```
 
 ## Guarantees

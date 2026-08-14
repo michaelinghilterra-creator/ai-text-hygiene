@@ -1,7 +1,7 @@
 {
   "name": "ai-text-hygiene",
-  "version": "0.2.0",
-  "description": "Clean up invisible AI text artifacts (zero-width/format Unicode, em dashes, curly quotes) to plain, ATS-safe text, and flag monotonous sentence cadence, the real AI-writing tell. Zero dependencies.",
+  "version": "0.3.0",
+  "description": "Clean up invisible AI text artifacts (zero-width/format Unicode, em dashes, curly quotes) to plain, ATS-safe text, and flag the AI-writing tells: monotonous cadence, overused vocabulary, filler, cliche openers. Zero dependencies.",
   "type": "module",
   "main": "src/index.mjs",
   "exports": "./src/index.mjs",
@@ -32,7 +32,10 @@
     "cadence",
     "readability",
     "writing-quality",
-    "burstiness"
+    "burstiness",
+    "filler",
+    "plain-language",
+    "style"
   ],
   "license": "MIT",
   "engines": {

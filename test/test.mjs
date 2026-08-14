@@ -1,5 +1,5 @@
 // ai-text-hygiene tests. Plain node, no framework. `node test/test.mjs`.
-import { clean, cleanText, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport } from '../src/index.mjs';
+import { clean, cleanText, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, stripRedundantFiller } from '../src/index.mjs';
 
 let passed = 0, failed = 0;
 function check(cond, msg) {
@@ -67,6 +67,46 @@ check(typeof formatCadenceReport(mono) === 'string' && /cadence:/.test(formatCad
 check(formatCadenceReport(analyzeCadence('a.\nb.')).includes('insufficient'), 'report states insufficient for tiny input');
 // null-safe
 check(analyzeCadence(null).insufficient === true, 'analyzeCadence(null) is insufficient, not a throw');
+
+// --- style -------------------------------------------------------------------
+const AI_FLAVORED = "In today's fast-paced world I have delved into the realm of gardening to unlock the potential of my backyard, meticulously fostering synergy between soil and season to spearhead pivotal, world-class harvests that resonate. In order to leverage robust techniques, I endeavor to elevate every bed I plant across the yard.";
+const PLAIN = 'I repainted the back fence last spring. It had been peeling for years, so I scraped it down, primed the bare spots, and put on two coats over a long weekend. The color finally matched the house again, and the neighbors stopped mentioning it when they walked by.';
+
+const sBad = analyzeStyle(AI_FLAVORED);
+const sGood = analyzeStyle(PLAIN);
+check(!sBad.insufficient && sBad.score < 40, `AI-flavored text scores low (${sBad.score})`);
+check(sBad.flags.some((f) => f.type === 'ai-vocab' && f.severity === 'high'), 'AI-flavored flags high ai-vocab');
+check(!sGood.insufficient && sGood.score > 80, `plain text scores high (${sGood.score})`);
+check(sGood.flags.length === 0, 'plain text has no flags');
+check(analyzeStyle('too short to judge').insufficient === true, 'short input is insufficient');
+check(analyzeStyle(null).insufficient === true, 'analyzeStyle(null) is insufficient, not a throw');
+
+// low-severity RevOps words are flagged softly, not penalized hard
+const soft = analyzeStyle('The new build system is robust and scalable. It streamlined the comprehensive test suite and the dynamic config loader, so the team shipped faster without babysitting every release during the busy launch week that just wrapped up.');
+check(soft.flags.every((f) => f.severity === 'low'), 'soft (common-in-tech) words flag as low severity only');
+// The point of decision #1: soft words penalize far less than high AI words. The
+// same paragraph with soft words swapped for high ones must score much lower.
+const hard = analyzeStyle('The new build system is seamless and world-class. It streamlined a holistic test suite and unlocks the potential of the dynamic config loader, so the team could elevate every release and resonate during the busy launch week that just wrapped up.');
+check(!soft.insufficient && soft.score - hard.score >= 20, `soft (${soft.score}) scores well above the high-vocab version (${hard.score})`);
+
+// bullet overload: flagged for prose, suppressed for a resume (expectBullets)
+const bulletText = [
+  '- I loaded the trucks each morning before the first shift arrived',
+  '- I checked every pallet against the printed manifest sheet',
+  '- I logged the counts into the warehouse system by hand',
+  '- I trained two new hires on the receiving process',
+  '- I kept the loading dock clear and organized all day',
+  '- I closed out the shift report before heading home',
+].join('\n');
+check(analyzeStyle(bulletText).flags.some((f) => f.type === 'bullets'), 'bullet overload flagged for prose');
+check(!analyzeStyle(bulletText, { expectBullets: true }).flags.some((f) => f.type === 'bullets'), 'bullet overload suppressed when expectBullets (resume)');
+
+// stripRedundantFiller: the one safe auto-fix
+check(stripRedundantFiller('In order to win we work on a daily basis.') === 'To win we work daily.', 'strip: swaps + preserves leading capital');
+check(stripRedundantFiller('the majority of us have the ability to help') === 'most of us can help', 'strip: mid-sentence swaps');
+check(stripRedundantFiller(stripRedundantFiller('In order to go')) === stripRedundantFiller('In order to go'), 'strip is idempotent');
+check(stripRedundantFiller(null) === null, 'strip is null-safe');
+check(stripRedundantFiller('nothing to change here') === 'nothing to change here', 'strip leaves clean text alone');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

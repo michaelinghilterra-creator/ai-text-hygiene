@@ -2,7 +2,7 @@
 // ai-text-hygiene CLI. Read from files or stdin, clean, write to stdout (or in
 // place with --write). See `ai-text-hygiene --help`.
 import fs from 'fs';
-import { clean, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport } from '../src/index.mjs';
+import { clean, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, formatStyleReport, stripRedundantFiller } from '../src/index.mjs';
 
 const HELP = `ai-text-hygiene -- clean up invisible AI text artifacts
 
@@ -18,13 +18,19 @@ Options:
   --cadence        Analyze rhythm instead of cleaning: report a 0-100 variety
                    score and flag monotonous sentence length / repeated openers.
                    Does not modify the text. Ignores --write.
+  --style          Analyze word choice: report a 0-100 plainness score and flag
+                   overused AI vocabulary, filler, cliche openers, bullet overload.
+                   Does not modify the text. Ignores --write.
+  --strip-filler   Auto-fix ONLY the always-safe redundant phrases
+                   ("in order to" -> "to"). Leaves everything else untouched.
   --write, -w      Rewrite each input file in place (default: print to stdout).
   --help, -h       Show this help.
 
-With no files, reads stdin. Cleaning writes cleaned text to stdout; --cadence
-writes its report to stdout.`;
+With no files, reads stdin. Cleaning / --strip-filler write text to stdout;
+--cadence and --style write their report to stdout.`;
 
 function pickMode(args) {
+  if (args.includes('--strip-filler')) return stripRedundantFiller;
   if (args.includes('--strip-only')) return stripInvisible;
   if (args.includes('--conservative')) return cleanConservative;
   return clean;
@@ -42,22 +48,24 @@ function readStdin() {
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h')) { console.log(HELP); return; }
-  const cadence = args.includes('--cadence');
+  const analyze = args.includes('--cadence') ? (t) => formatCadenceReport(analyzeCadence(t))
+    : args.includes('--style') ? (t) => formatStyleReport(analyzeStyle(t))
+      : null;
   const fn = pickMode(args);
   const write = args.includes('--write') || args.includes('-w');
   const files = args.filter((a) => !a.startsWith('-'));
 
   if (files.length === 0) {
     const input = await readStdin();
-    if (cadence) { console.log(formatCadenceReport(analyzeCadence(input))); return; }
+    if (analyze) { console.log(analyze(input)); return; }
     process.stdout.write(fn(input));
     return;
   }
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8');
-    if (cadence) {
+    if (analyze) {
       if (files.length > 1) console.log(`== ${f} ==`);
-      console.log(formatCadenceReport(analyzeCadence(text)));
+      console.log(analyze(text));
       continue;
     }
     const out = fn(text);

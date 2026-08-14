@@ -155,3 +155,8 @@ export function cleanConservative(s) {
 // sentence the same length and shape). analyzeCadence measures it and flags
 // monotony; it is a writing-quality signal, not a detector. See cadence.mjs.
 export { analyzeCadence, formatCadenceReport } from './cadence.mjs';
+
+// Style: the non-rhythm AI tells (overused vocab, filler, cliche openers, bullet
+// overload). analyzeStyle flags them (detect-only); stripRedundantFiller is the
+// one safe auto-fix. See style.mjs.
+export { analyzeStyle, formatStyleReport, stripRedundantFiller } from './style.mjs';
