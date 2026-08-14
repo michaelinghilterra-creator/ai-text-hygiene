@@ -2,7 +2,7 @@
 // ai-text-hygiene CLI. Read from files or stdin, clean, write to stdout (or in
 // place with --write). See `ai-text-hygiene --help`.
 import fs from 'fs';
-import { clean, stripInvisible, cleanConservative } from '../src/index.mjs';
+import { clean, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport } from '../src/index.mjs';
 
 const HELP = `ai-text-hygiene -- clean up invisible AI text artifacts
 
@@ -15,10 +15,14 @@ Options:
                    (no punctuation changes; safe for any language).
   --conservative   Length-stable: invisibles + curly quotes only (no dash/ellipsis
                    folding), for fixed-width or character-capped fields.
+  --cadence        Analyze rhythm instead of cleaning: report a 0-100 variety
+                   score and flag monotonous sentence length / repeated openers.
+                   Does not modify the text. Ignores --write.
   --write, -w      Rewrite each input file in place (default: print to stdout).
   --help, -h       Show this help.
 
-With no files, reads stdin and writes cleaned text to stdout.`;
+With no files, reads stdin. Cleaning writes cleaned text to stdout; --cadence
+writes its report to stdout.`;
 
 function pickMode(args) {
   if (args.includes('--strip-only')) return stripInvisible;
@@ -38,17 +42,24 @@ function readStdin() {
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h')) { console.log(HELP); return; }
+  const cadence = args.includes('--cadence');
   const fn = pickMode(args);
   const write = args.includes('--write') || args.includes('-w');
   const files = args.filter((a) => !a.startsWith('-'));
 
   if (files.length === 0) {
     const input = await readStdin();
+    if (cadence) { console.log(formatCadenceReport(analyzeCadence(input))); return; }
     process.stdout.write(fn(input));
     return;
   }
   for (const f of files) {
     const text = fs.readFileSync(f, 'utf8');
+    if (cadence) {
+      if (files.length > 1) console.log(`== ${f} ==`);
+      console.log(formatCadenceReport(analyzeCadence(text)));
+      continue;
+    }
     const out = fn(text);
     if (write) {
       if (out !== text) fs.writeFileSync(f, out);

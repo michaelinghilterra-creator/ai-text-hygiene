@@ -59,12 +59,38 @@ cleanConservative('length‑stable "field"'); // 1:1 swaps only, no growth
   enabled with `{ foldHomoglyphs: true }` — it is opt-in because it would otherwise
   mangle a legitimately non-Latin name.
 
+### Cadence (the other half of "reads like a human")
+
+Cleaning is the cosmetic half. The thing that actually reads as machine-written is
+**cadence**: whether every sentence has the same length and shape. A character
+scrub does nothing to rhythm. `analyzeCadence` measures it.
+
+```js
+import { analyzeCadence, formatCadenceReport } from 'ai-text-hygiene';
+
+const report = analyzeCadence(resumeBullets);
+report.score;   // 0-100 variety score (higher = more varied, more human)
+report.flags;   // [{ type, severity, message }], e.g. "11 of 14 lines land within 2 words of 20"
+console.log(formatCadenceReport(report));
+```
+
+- `analyzeCadence(text, opts)` — returns `{ score, insufficient, units, flags, metrics }`.
+  It measures sentence-length variance, length-band clustering, and repeated
+  openers / templates. Fewer than 5 lines returns `insufficient: true` with a
+  `null` score, because rhythm cannot be judged from a handful of lines.
+- `formatCadenceReport(report)` — a printable summary for a CLI or log.
+
+This is a **writing-quality signal, not a detector.** It flags monotony so you (or
+a model) can vary the rhythm. It does not claim to beat any AI-detection system,
+because varied rhythm is simply better writing, not a trick.
+
 ### CLI
 
 ```bash
 npx ai-text-hygiene messy.txt > clean.txt      # stdout
 npx ai-text-hygiene --write notes.md           # rewrite in place
 cat draft.txt | npx ai-text-hygiene --conservative
+npx ai-text-hygiene --cadence resume.md        # rhythm report, does not modify
 ```
 
 ## Guarantees

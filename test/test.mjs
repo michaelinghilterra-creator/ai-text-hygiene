@@ -1,5 +1,5 @@
 // ai-text-hygiene tests. Plain node, no framework. `node test/test.mjs`.
-import { clean, cleanText, stripInvisible, cleanConservative } from '../src/index.mjs';
+import { clean, cleanText, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport } from '../src/index.mjs';
 
 let passed = 0, failed = 0;
 function check(cond, msg) {
@@ -44,6 +44,29 @@ eq(stripInvisible(LOWQ + 'Gut' + RDQ), LOWQ + 'Gut' + RDQ, 'stripInvisible keeps
 const messy = LDQ + 'a' + RDQ + ' ' + EM + ' b' + HELL + ' c--d' + ZWSP;
 eq(clean(clean(messy)), clean(messy), 'clean is idempotent');
 check(clean(null) === null, 'null passes through');
+
+// --- cadence -----------------------------------------------------------------
+const MONOTONE = Array.from({ length: 8 }, (_, i) =>
+  `Led the effort number ${i} to deliver a platform that improved reporting speed for the whole team`).join('\n');
+const VARIED = [
+  'I build tools.', 'It worked.', 'Now they self-serve.',
+  'Last year I rebuilt the forecasting model from scratch and it cut error nearly in half within two quarters.',
+  'The team had been flying blind on pipeline, so I instrumented every stage and gave them one dashboard to trust.',
+  'Adoption hit ninety percent in a month.', 'Not because I mandated it.',
+].join('\n');
+
+const mono = analyzeCadence(MONOTONE);
+const vary = analyzeCadence(VARIED);
+check(!mono.insufficient && mono.score < 45, `monotone scores low (${mono.score})`);
+check(mono.flags.some((f) => f.type === 'low-variance'), 'monotone flags low-variance');
+check(!vary.insufficient && vary.score > 65, `varied scores high (${vary.score})`);
+check(vary.flags.length === 0, 'varied has no flags');
+check(analyzeCadence('one.\ntwo.').insufficient === true, 'too-few-lines is insufficient');
+check(analyzeCadence('one.\ntwo.').score === null, 'insufficient score is null');
+check(typeof formatCadenceReport(mono) === 'string' && /cadence:/.test(formatCadenceReport(mono)), 'formatCadenceReport renders');
+check(formatCadenceReport(analyzeCadence('a.\nb.')).includes('insufficient'), 'report states insufficient for tiny input');
+// null-safe
+check(analyzeCadence(null).insufficient === true, 'analyzeCadence(null) is insufficient, not a throw');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

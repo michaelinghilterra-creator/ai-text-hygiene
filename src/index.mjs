@@ -150,3 +150,8 @@ export function cleanConservative(s) {
     ellipsis: false, foldHomoglyphs: false, collapseSpaces: false,
   });
 }
+
+// Cadence: cleaning is the cosmetic half; the real "AI tell" is rhythm (every
+// sentence the same length and shape). analyzeCadence measures it and flags
+// monotony; it is a writing-quality signal, not a detector. See cadence.mjs.
+export { analyzeCadence, formatCadenceReport } from './cadence.mjs';
