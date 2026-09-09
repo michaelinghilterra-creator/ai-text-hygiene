@@ -1,0 +1,46 @@
+name: Feature Request
+description: Suggest a new detector, analyzer, or improvement
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: coc
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow the [Code of Conduct](https://github.com/michaelinghilterra-creator/ai-text-hygiene/blob/main/CODE_OF_CONDUCT.md)
+          required: true
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Existing issues
+      options:
+        - label: I searched existing issues and this hasn't been requested yet
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What artifact, tell, or gap does this address? An example is very helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? Note if this should strip/normalize (safe) vs. only flag (detect-only).
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Zero-width / invisible Unicode stripping
+        - Typographic normalization (em dash, curly quotes, ellipsis)
+        - Cadence analyzer
+        - Style analyzer (vocabulary, filler, openers)
+        - CLI
+        - Documentation
+        - Other
+    validations:
+      required: true
