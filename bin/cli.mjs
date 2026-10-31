@@ -2,7 +2,7 @@
 // ai-text-hygiene CLI. Read from files or stdin, clean, write to stdout (or in
 // place with --write). See `ai-text-hygiene --help`.
 import fs from 'fs';
-import { clean, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, formatStyleReport, stripRedundantFiller, analyzeVoice, formatVoiceReport, disclose } from '../src/index.mjs';
+import { clean, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, formatStyleReport, stripRedundantFiller, analyzeVoice, formatVoiceReport, disclose, cleanDocx, extractDocxText } from '../src/index.mjs';
 
 const HELP = `ai-text-hygiene -- clean up invisible AI text artifacts
 
@@ -32,7 +32,8 @@ Options:
   --help, -h       Show this help.
 
 With no files, reads stdin. Cleaning / --strip-filler write text to stdout;
---cadence, --style, and --voice write their report to stdout.`;
+--cadence, --style, and --voice write their report to stdout.
+.docx files can be cleaned in place with --write or analyzed as document text.`;
 
 function pickMode(args) {
   if (args.includes('--strip-filler')) return stripRedundantFiller;
@@ -85,6 +86,23 @@ async function main() {
     return;
   }
   for (const f of files) {
+    const isDocx = /\.docx$/i.test(f);
+    if (isDocx) {
+      if (args.includes('--strip-filler')) throw new TypeError('--strip-filler is not supported for .docx files.');
+      if (disclosureLevel != null) throw new TypeError('--disclose is not supported for .docx files.');
+      const input = fs.readFileSync(f);
+      if (analyze) {
+        if (files.length > 1) console.log(`== ${f} ==`);
+        console.log(analyze(extractDocxText(input).body));
+        continue;
+      }
+      if (!write) throw new TypeError('.docx cleaning requires --write.');
+      const mode = args.includes('--strip-only') ? 'strip' : args.includes('--conservative') ? 'conservative' : 'clean';
+      const result = cleanDocx(input, { mode });
+      if (result.changed) fs.writeFileSync(f, result.buffer);
+      console.error(result.changed ? `cleaned: ${f} (${result.changedParts.join(', ')})` : `unchanged: ${f}`);
+      continue;
+    }
     const text = fs.readFileSync(f, 'utf8');
     if (analyze) {
       if (files.length > 1) console.log(`== ${f} ==`);

@@ -168,3 +168,7 @@ export { analyzeVoice, formatVoiceReport } from './voice.mjs';
 // Disclosure: optionally add an honest note about how AI assistance was used.
 // It supports plain text, Markdown, and HTML. See disclose.mjs.
 export { disclosureLine, disclose, DISCLOSURE_LEVELS } from './disclose.mjs';
+
+// DOCX: clean text inside Word documents without changing their layout or
+// media, and extract their text for the existing analysis tools. See docx.mjs.
+export { cleanDocx, extractDocxText } from './docx.mjs';

@@ -4,7 +4,8 @@ import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { clean, cleanText, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, stripRedundantFiller, analyzeVoice, formatVoiceReport, disclosureLine, disclose } from '../src/index.mjs';
+import { clean, cleanText, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, stripRedundantFiller, analyzeVoice, formatVoiceReport, disclosureLine, disclose, cleanDocx, extractDocxText } from '../src/index.mjs';
+import { crc32, readZip, entryData, writeZip } from '../src/zip.mjs';
 
 let passed = 0, failed = 0;
 function check(cond, msg) {
@@ -175,6 +176,87 @@ fs.unlinkSync(samplePath);
 check(cliVoice.status === 0 && cliVoice.stdout.startsWith('voice:'), 'CLI voice report smoke test');
 check(cliDisclose.status === 0 && cliDisclose.stdout.endsWith('First drafted with an AI assistant, then edited and checked by me.'), 'CLI drafted disclosure smoke test');
 check(cliBogus.status === 1, 'CLI unknown disclosure level exits 1');
+
+// --- zip ---------------------------------------------------------------------
+function originalEntry(name, data, method = 8) {
+  const source = Buffer.from(data);
+  const entry = readZip(writeZip([{ name, data: source }]))[0];
+  if (method === 8) return entry;
+  return { ...entry, method: 0, compressed: source, compressedSize: source.length };
+}
+
+eq(crc32(Buffer.from('123456789')), 0xCBF43926, 'CRC-32 standard vector');
+const zipInputs = [
+  originalEntry('bakery.txt', 'bread and rolls', 0),
+  originalEntry('garden.txt', 'basil and mint', 8),
+];
+const zipRoundTrip = readZip(writeZip(zipInputs));
+eq(entryData(zipRoundTrip[0]).toString(), 'bread and rolls', 'zip stored entry round trip');
+eq(entryData(zipRoundTrip[1]).toString(), 'basil and mint', 'zip deflate entry round trip');
+let randomZipError = false;
+try { readZip(Buffer.from([4, 8, 15, 16, 23, 42])); } catch (error) { randomZipError = /not a zip/.test(error.message); }
+check(randomZipError, 'random bytes are rejected as a zip');
+
+// --- docx --------------------------------------------------------------------
+function docxFixture(documentXml, headerXml = '<w:hdr><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>', footerXml = '<w:ftr><w:p><w:r><w:t>Footer</w:t></w:r></w:p></w:ftr>') {
+  return writeZip([
+    originalEntry('[Content_Types].xml', '<Types></Types>'),
+    originalEntry('word/document.xml', documentXml),
+    originalEntry('word/header1.xml', headerXml),
+    originalEntry('word/footer1.xml', footerXml),
+    originalEntry('word/media/image1.png', Buffer.from([0, 1, 2, 250, 255]), 0),
+  ]);
+}
+
+const docXml = '<w:document><w:body><w:p w:rsidR="00AB"><w:r><w:rPr><w:b/></w:rPr><w:t>Bakery ' + EM + ' ' + LDQ + 'open' + RDQ + ZWSP + '</w:t><w:t>A &amp; B</w:t><w:t>' + ZWSP + ' garden</w:t></w:r></w:p></w:body></w:document>';
+const headerXml = '<w:hdr><w:p><w:r><w:t>Header ' + EM + ' note</w:t></w:r></w:p></w:hdr>';
+const footerXml = '<w:ftr><w:p><w:r><w:t>' + LDQ + 'Footer' + RDQ + '</w:t></w:r></w:p></w:ftr>';
+const dirtyDocx = docxFixture(docXml, headerXml, footerXml);
+const dirtyEntries = readZip(dirtyDocx);
+const cleanedDocx = cleanDocx(dirtyDocx);
+check(cleanedDocx.changed, 'DOCX reports changed text');
+eq(cleanedDocx.changedParts.join('|'), 'word/document.xml|word/header1.xml|word/footer1.xml', 'DOCX lists changed parts');
+const cleanedEntries = readZip(cleanedDocx.buffer);
+const cleanedXml = entryData(cleanedEntries.find((entry) => entry.name === 'word/document.xml')).toString();
+check(cleanedXml.includes('<w:t>Bakery, "open"</w:t>'), 'DOCX cleans punctuation and invisible text');
+check(cleanedXml.includes('<w:rPr><w:b/></w:rPr>') && cleanedXml.includes('<w:p w:rsidR="00AB">'), 'DOCX preserves markup outside text nodes');
+check(cleanedXml.includes('<w:t>A &amp; B</w:t>'), 'DOCX preserves XML escaping');
+eq(clean(ZWSP + ' garden'), ' garden', 'space-led fixture has expected clean output');
+check(cleanedXml.includes('<w:t xml:space="preserve"> garden</w:t>'), 'DOCX adds space preservation for leading whitespace');
+const imageBefore = dirtyEntries.find((entry) => entry.name === 'word/media/image1.png').compressed;
+const imageAfter = cleanedEntries.find((entry) => entry.name === 'word/media/image1.png').compressed;
+check(imageBefore.equals(imageAfter), 'DOCX keeps image compressed bytes exact');
+const cleanedHeader = entryData(cleanedEntries.find((entry) => entry.name === 'word/header1.xml')).toString();
+const cleanedFooter = entryData(cleanedEntries.find((entry) => entry.name === 'word/footer1.xml')).toString();
+check(cleanedHeader.includes('Header, note') && cleanedFooter.includes('"Footer"'), 'DOCX cleans header and footer text');
+
+const cleanBuffer = docxFixture('<w:document><w:body><w:p><w:r><w:t>Clean garden text</w:t></w:r></w:p></w:body></w:document>');
+const unchangedDocx = cleanDocx(cleanBuffer);
+check(!unchangedDocx.changed && unchangedDocx.buffer === cleanBuffer, 'clean DOCX returns the original buffer object');
+const conservativeDocx = cleanDocx(dirtyDocx, { mode: 'conservative' });
+const conservativeXml = entryData(readZip(conservativeDocx.buffer).find((entry) => entry.name === 'word/document.xml')).toString();
+check(conservativeXml.includes(EM) && conservativeXml.includes('"open"'), 'conservative DOCX keeps em dash and folds quotes');
+
+const extractXml = '<w:document><w:body><w:p><w:r><w:t>Garden</w:t><w:tab/><w:t>tools</w:t></w:r></w:p><w:p><w:r><w:t>Second &lt;bed&gt;</w:t></w:r></w:p><w:tbl></w:tbl><w:txbxContent></w:txbxContent><w:drawing></w:drawing></w:body></w:document>';
+const extracted = extractDocxText(docxFixture(extractXml));
+eq(extracted.body, 'Garden\ttools\nSecond <bed>\n', 'DOCX extracts paragraphs, tabs, and escaped text');
+eq(extracted.headers, 'Header\n', 'DOCX extracts headers separately');
+eq(extracted.footers, 'Footer\n', 'DOCX extracts footers separately');
+check(extracted.structure.tables === 1 && extracted.structure.textBoxes === 1 && extracted.structure.images === 1, 'DOCX counts document structures');
+let missingDocumentError = false;
+try { cleanDocx(writeZip([originalEntry('[Content_Types].xml', '<Types></Types>')])); } catch (error) { missingDocumentError = error.message === 'not a .docx file'; }
+check(missingDocumentError, 'zip without document XML is rejected as DOCX');
+
+const cliDocxPath = path.join(os.tmpdir(), `ai-text-hygiene-docx-${process.pid}.docx`);
+fs.writeFileSync(cliDocxPath, dirtyDocx);
+const cliDocxNoWrite = spawnSync(process.execPath, [cliPath, cliDocxPath], { encoding: 'utf8' });
+const cliDocxWrite = spawnSync(process.execPath, [cliPath, '--write', cliDocxPath], { encoding: 'utf8' });
+const cliDocxStyle = spawnSync(process.execPath, [cliPath, '--style', cliDocxPath], { encoding: 'utf8' });
+const cliDocxXml = entryData(readZip(fs.readFileSync(cliDocxPath)).find((entry) => entry.name === 'word/document.xml')).toString();
+fs.unlinkSync(cliDocxPath);
+check(cliDocxNoWrite.status === 1, 'CLI DOCX without write exits 1');
+check(cliDocxWrite.status === 0 && cliDocxXml.includes('Bakery, "open"'), 'CLI DOCX write cleans the file');
+check(cliDocxStyle.status === 0 && cliDocxStyle.stdout.startsWith('style:'), 'CLI DOCX style report renders');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
