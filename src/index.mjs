@@ -82,7 +82,9 @@ for (const [cp, to] of HOMO_PAIRS) HOMOGLYPHS[chr(cp)] = to;
 const HOMOGLYPH_RE = new RegExp('[' + Object.keys(HOMOGLYPHS).join('') + ']', 'g');
 
 // Spans kept byte-exact even inside prose: inline code, md link targets, URLs, emails.
-const PROTECT_RE = /(`[^`\n]*`|\]\([^)\n]*\)|https?:\/\/[^\s)]+|[^\s@]+@[^\s@]+\.[A-Za-z]{2,})/g;
+// Link targets stop at '(' and emails only start at a word boundary, so a long
+// run of "](" or of non-space characters cannot make the split quadratic.
+const PROTECT_RE = /(`[^`\n]*`|\]\([^()\n]*\)|https?:\/\/[^\s)]+|(?<![^\s@])[^\s@]+@[^\s@]+\.[A-Za-z]{2,})/g;
 
 function applyProse(seg, o) {
   let t = seg;
@@ -92,7 +94,7 @@ function applyProse(seg, o) {
   if (o.curlyQuotes) t = t.replace(SQUO_RE, "'").replace(DQUO_RE, '"');
   if (o.ellipsis) t = t.replace(HELLIP_RE, '...');
   if (o.foldHomoglyphs) t = t.replace(HOMOGLYPH_RE, (ch2) => HOMOGLYPHS[ch2] || ch2);
-  if (o.collapseSpaces) t = t.replace(/[ \t]+,/g, ',').replace(/,[ \t]*(?:,[ \t]*)+/g, ', ');
+  if (o.collapseSpaces) t = t.replace(/(?<![ \t])[ \t]+,/g, ',').replace(/,[ \t]*(?:,[ \t]*)+/g, ', ');
   return t;
 }
 

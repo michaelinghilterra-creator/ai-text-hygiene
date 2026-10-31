@@ -301,6 +301,11 @@ check(cleanHtml(bigHtml).includes('Fresh bread, daily') && Date.now() - bigStart
 const ltStart = Date.now();
 checkAts('<'.repeat(200000), { html: true });
 check(Date.now() - ltStart < 2000, 'ATS html tag strip stays fast on a run of unclosed <');
+for (const [name, input] of [['tabs', 'a' + '\t'.repeat(50000) + 'b'], ['"]("', '](' .repeat(50000)], ['"!"', '!'.repeat(50000)]]) {
+  const started = Date.now();
+  clean(input);
+  check(Date.now() - started < 2000, `clean stays fast on a long run of ${name}`);
+}
 check(checkAts('Bread' + ZWSP).findings.some((f) => f.type === 'invisible'), 'ATS flags invisible characters');
 check(!checkAts('Bread' + ZWSP).ok, 'ATS high finding makes ok false');
 check(checkAts(C(0xE001)).findings.some((f) => f.type === 'symbol-bullets'), 'ATS flags private-use symbol bullets');
