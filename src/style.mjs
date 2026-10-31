@@ -175,3 +175,4 @@ export function formatStyleReport(report) {
   else lines.push('  reads clean, nothing flagged.');
   return lines.join('\n');
 }
+export { AI_WORDS_HIGH, AI_WORDS_LOW, AI_PHRASES };

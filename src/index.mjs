@@ -160,3 +160,11 @@ export { analyzeCadence, formatCadenceReport } from './cadence.mjs';
 // overload). analyzeStyle flags them (detect-only); stripRedundantFiller is the
 // one safe auto-fix. See style.mjs.
 export { analyzeStyle, formatStyleReport, stripRedundantFiller } from './style.mjs';
+
+// Voice: compare a draft with the user's own samples and flag differences so
+// they can rewrite those parts themselves. See voice.mjs.
+export { analyzeVoice, formatVoiceReport } from './voice.mjs';
+
+// Disclosure: optionally add an honest note about how AI assistance was used.
+// It supports plain text, Markdown, and HTML. See disclose.mjs.
+export { disclosureLine, disclose, DISCLOSURE_LEVELS } from './disclose.mjs';

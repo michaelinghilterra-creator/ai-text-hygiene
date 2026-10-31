@@ -2,7 +2,7 @@
 // ai-text-hygiene CLI. Read from files or stdin, clean, write to stdout (or in
 // place with --write). See `ai-text-hygiene --help`.
 import fs from 'fs';
-import { clean, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, formatStyleReport, stripRedundantFiller } from '../src/index.mjs';
+import { clean, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, formatStyleReport, stripRedundantFiller, analyzeVoice, formatVoiceReport, disclose } from '../src/index.mjs';
 
 const HELP = `ai-text-hygiene -- clean up invisible AI text artifacts
 
@@ -21,13 +21,18 @@ Options:
   --style          Analyze word choice: report a 0-100 plainness score and flag
                    overused AI vocabulary, filler, cliche openers, bullet overload.
                    Does not modify the text. Ignores --write.
+  --voice <file>   Compare with a file of your own writing samples. May repeat.
+                   Flags differences without rewriting. Ignores --write.
+  --disclose[=level]
+                   Append an AI-assistance disclosure. Levels: assisted, drafted,
+                   edited. Defaults to assisted.
   --strip-filler   Auto-fix ONLY the always-safe redundant phrases
                    ("in order to" -> "to"). Leaves everything else untouched.
   --write, -w      Rewrite each input file in place (default: print to stdout).
   --help, -h       Show this help.
 
 With no files, reads stdin. Cleaning / --strip-filler write text to stdout;
---cadence and --style write their report to stdout.`;
+--cadence, --style, and --voice write their report to stdout.`;
 
 function pickMode(args) {
   if (args.includes('--strip-filler')) return stripRedundantFiller;
@@ -48,17 +53,35 @@ function readStdin() {
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h')) { console.log(HELP); return; }
-  const analyze = args.includes('--cadence') ? (t) => formatCadenceReport(analyzeCadence(t))
+  const voiceFiles = [];
+  const files = [];
+  let disclosureLevel = null;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--voice') {
+      if (i + 1 >= args.length || args[i + 1].startsWith('-')) throw new TypeError('--voice requires a samples file.');
+      voiceFiles.push(args[++i]);
+    } else if (arg === '--disclose') {
+      disclosureLevel = 'assisted';
+    } else if (arg.startsWith('--disclose=')) {
+      disclosureLevel = arg.slice('--disclose='.length);
+    } else if (!arg.startsWith('-')) {
+      files.push(arg);
+    }
+  }
+  const samples = voiceFiles.map((file) => fs.readFileSync(file, 'utf8')).join('\n\n');
+  const analyze = voiceFiles.length ? (t) => formatVoiceReport(analyzeVoice(t, samples))
+    : args.includes('--cadence') ? (t) => formatCadenceReport(analyzeCadence(t))
     : args.includes('--style') ? (t) => formatStyleReport(analyzeStyle(t))
       : null;
   const fn = pickMode(args);
   const write = args.includes('--write') || args.includes('-w');
-  const files = args.filter((a) => !a.startsWith('-'));
 
   if (files.length === 0) {
     const input = await readStdin();
     if (analyze) { console.log(analyze(input)); return; }
-    process.stdout.write(fn(input));
+    const out = fn(input);
+    process.stdout.write(disclosureLevel == null ? out : disclose(out, { level: disclosureLevel }));
     return;
   }
   for (const f of files) {
@@ -68,7 +91,8 @@ async function main() {
       console.log(analyze(text));
       continue;
     }
-    const out = fn(text);
+    let out = fn(text);
+    if (disclosureLevel != null) out = disclose(out, { level: disclosureLevel });
     if (write) {
       if (out !== text) fs.writeFileSync(f, out);
       console.error(`${out !== text ? 'cleaned' : 'unchanged'}: ${f}`);
