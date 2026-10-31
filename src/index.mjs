@@ -82,7 +82,9 @@ for (const [cp, to] of HOMO_PAIRS) HOMOGLYPHS[chr(cp)] = to;
 const HOMOGLYPH_RE = new RegExp('[' + Object.keys(HOMOGLYPHS).join('') + ']', 'g');
 
 // Spans kept byte-exact even inside prose: inline code, md link targets, URLs, emails.
-const PROTECT_RE = /(`[^`\n]*`|\]\([^)\n]*\)|https?:\/\/[^\s)]+|[^\s@]+@[^\s@]+\.[A-Za-z]{2,})/g;
+// Link targets stop at '(' and emails only start at a word boundary, so a long
+// run of "](" or of non-space characters cannot make the split quadratic.
+const PROTECT_RE = /(`[^`\n]*`|\]\([^()\n]*\)|https?:\/\/[^\s)]+|(?<![^\s@])[^\s@]+@[^\s@]+\.[A-Za-z]{2,})/g;
 
 function applyProse(seg, o) {
   let t = seg;
@@ -92,7 +94,7 @@ function applyProse(seg, o) {
   if (o.curlyQuotes) t = t.replace(SQUO_RE, "'").replace(DQUO_RE, '"');
   if (o.ellipsis) t = t.replace(HELLIP_RE, '...');
   if (o.foldHomoglyphs) t = t.replace(HOMOGLYPH_RE, (ch2) => HOMOGLYPHS[ch2] || ch2);
-  if (o.collapseSpaces) t = t.replace(/[ \t]+,/g, ',').replace(/,[ \t]*(?:,[ \t]*)+/g, ', ');
+  if (o.collapseSpaces) t = t.replace(/(?<![ \t])[ \t]+,/g, ',').replace(/,[ \t]*(?:,[ \t]*)+/g, ', ');
   return t;
 }
 
@@ -160,3 +162,27 @@ export { analyzeCadence, formatCadenceReport } from './cadence.mjs';
 // overload). analyzeStyle flags them (detect-only); stripRedundantFiller is the
 // one safe auto-fix. See style.mjs.
 export { analyzeStyle, formatStyleReport, stripRedundantFiller } from './style.mjs';
+
+// Voice: compare a draft with the user's own samples and flag differences so
+// they can rewrite those parts themselves. See voice.mjs.
+export { analyzeVoice, formatVoiceReport } from './voice.mjs';
+
+// Disclosure: optionally add an honest note about how AI assistance was used.
+// It supports plain text, Markdown, and HTML. See disclose.mjs.
+export { disclosureLine, disclose, DISCLOSURE_LEVELS } from './disclose.mjs';
+
+// DOCX: clean text inside Word documents without changing their layout or
+// media, and extract their text for the existing analysis tools. See docx.mjs.
+export { cleanDocx, extractDocxText } from './docx.mjs';
+
+// HTML: clean ordinary text nodes while keeping tags, attributes, comments,
+// and code-oriented element content unchanged. See html.mjs.
+export { cleanHtml } from './html.mjs';
+
+// Email: clean plain-text drafts while preserving headers, quoted replies,
+// and signatures. See email.mjs.
+export { cleanEmail } from './email.mjs';
+
+// ATS: flag parsing hazards and keyword gaps in plain text, HTML, or DOCX
+// resumes without modifying their contents. See ats.mjs.
+export { checkAts, formatAtsReport } from './ats.mjs';
