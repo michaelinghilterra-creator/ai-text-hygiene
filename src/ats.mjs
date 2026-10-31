@@ -20,7 +20,7 @@ export function checkAts(input, opts = {}) {
   const docx = Buffer.isBuffer(input);
   const extracted = docx ? extractDocxText(input) : null;
   let text = docx ? extracted.body : String(input == null ? '' : input);
-  if (!docx && opts.html === true) text = text.replace(/<[^>]*>/g, ' ');
+  if (!docx && opts.html === true) text = text.replace(/<[^<>]*>/g, ' ');
   const findings = [];
   const add = (type, severity, message) => findings.push({ type, severity, message });
   // stripInvisible also folds CRLF to LF, which is not an ATS hazard.

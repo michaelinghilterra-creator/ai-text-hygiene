@@ -298,6 +298,9 @@ check(checkAts('Bread baker\r\nGarden helper\r\n').findings.length === 0, 'ATS d
 const bigHtml = '<p>Fresh bread ' + EM + ' daily</p>'.repeat(20000);
 const bigStart = Date.now();
 check(cleanHtml(bigHtml).includes('Fresh bread, daily') && Date.now() - bigStart < 2000, 'cleanHtml stays fast on a large page');
+const ltStart = Date.now();
+checkAts('<'.repeat(200000), { html: true });
+check(Date.now() - ltStart < 2000, 'ATS html tag strip stays fast on a run of unclosed <');
 check(checkAts('Bread' + ZWSP).findings.some((f) => f.type === 'invisible'), 'ATS flags invisible characters');
 check(!checkAts('Bread' + ZWSP).ok, 'ATS high finding makes ok false');
 check(checkAts(C(0xE001)).findings.some((f) => f.type === 'symbol-bullets'), 'ATS flags private-use symbol bullets');

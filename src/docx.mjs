@@ -60,11 +60,18 @@ export function cleanDocx(buf, opts = {}) {
   return { buffer: writeZip(output), changedParts, changed: true };
 }
 
+// Builds the text from the pieces it wants (text runs, paragraph ends, tabs,
+// breaks) instead of deleting markup, so nothing tag-shaped can survive.
+const PART_TEXT_RE = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<\/w:p>|<w:tab\s*\/>|<w:(?:br|cr)\s*\/>/g;
+
 function partText(entry) {
   const xml = entryData(entry).toString('utf8');
-  return xml.replace(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<\/w:p>|<w:tab\s*\/>|<w:(?:br|cr)\s*\/>|<[^>]*>/g,
-    (whole, content) => content != null ? decodeXml(content) : whole === '</w:p>' ? '\n'
-      : /^<w:tab/.test(whole) ? '\t' : /^<w:(?:br|cr)/.test(whole) ? '\n' : '');
+  let out = '';
+  for (const match of xml.matchAll(PART_TEXT_RE)) {
+    if (match[1] != null) out += decodeXml(match[1]);
+    else out += match[0].startsWith('<w:tab') ? '\t' : '\n';
+  }
+  return out;
 }
 
 export function extractDocxText(buf) {
