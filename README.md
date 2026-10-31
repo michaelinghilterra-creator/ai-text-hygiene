@@ -146,6 +146,104 @@ stripRedundantFiller('In order to win we meet on a daily basis.');
   breaks text.
 - `formatStyleReport(report)` — a printable summary.
 
+### Voice (does this sound like you?)
+
+The style and cadence reports compare text against general AI habits. The voice
+report compares a draft against **your own writing**: give it a few paragraphs
+you wrote yourself, and it points at the sentences that don't sound like you.
+
+```js
+import { analyzeVoice, formatVoiceReport } from 'ai-text-hygiene';
+
+const report = analyzeVoice(draft, [oldEmail, oldPost, oldCoverLetter]);
+report.score;      // 0-100 match to your samples
+report.sentences;  // [{ index, text, reasons }], the ones worth rewriting yourself
+console.log(formatVoiceReport(report));
+```
+
+- `analyzeVoice(draft, samples, opts)`: **flag only**, never rewrites. Compares
+  simple, explainable features (sentence length and spread, contractions,
+  first-person use, word length, commas, questions, exclamations) and flags AI
+  vocabulary that never shows up in your samples. Returns `{ score, insufficient,
+  features, flags, sentences, metrics }`. Needs about 150 words of samples and 30
+  words of draft; below that it returns `insufficient: true`.
+- `formatVoiceReport(report)`: a printable summary.
+
+The fix is always yours to make. Rewriting the flagged sentences in your own words
+is what makes the text yours.
+
+### Disclosure (optional)
+
+For people who would rather say up front that they had help.
+
+```js
+import { disclose, disclosureLine } from 'ai-text-hygiene';
+
+disclose(coverLetter, { level: 'drafted' });
+// appends: "First drafted with an AI assistant, then edited and checked by me."
+disclosureLine({ level: 'edited', tool: 'Claude', format: 'html' });
+// => '<p class="ai-disclosure">Written by me, with editing help from Claude.</p>'
+```
+
+- `disclosureLine({ level, tool, format })`: levels `assisted` (default),
+  `drafted`, `edited`; formats `text`, `markdown`, `html`.
+- `disclose(text, opts)`: appends the line after a blank line. Running it twice
+  adds it once.
+
+### Word documents (.docx)
+
+```js
+import fs from 'fs';
+import { cleanDocx, extractDocxText } from 'ai-text-hygiene';
+
+const { buffer, changed, changedParts } = cleanDocx(fs.readFileSync('resume.docx'));
+if (changed) fs.writeFileSync('resume.docx', buffer);
+extractDocxText(fs.readFileSync('resume.docx')).body; // plain text for the reports
+```
+
+- `cleanDocx(buf, { mode })`: cleans only the text inside Word text runs (body,
+  headers, footers, footnotes, endnotes). Layout, styles, images and every other
+  part of the file keep their original bytes. `mode` is `clean` (default),
+  `strip`, or `conservative`. Text is cleaned run by run, so punctuation that
+  Word split across two formatting runs may fold less neatly than in plain text.
+- `extractDocxText(buf)`: `{ body, headers, footers, notes, structure }`, where
+  `structure` counts tables, text boxes and images.
+
+Still zero dependencies: a small zip reader and writer on Node's built-in `zlib`.
+ZIP64, encrypted and multi-disk archives are refused with a clear error.
+
+### HTML and email drafts
+
+- `cleanHtml(html, { mode })`: cleans text between tags only. Tags, attributes,
+  comments, and the contents of `script`, `style`, `textarea`, `pre`, `code`,
+  `kbd` and `samp` stay byte-exact. Entity forms of the characters it folds
+  (`&mdash;`, `&#8212;`, `&ldquo;`, zero-width references) are folded too;
+  `&nbsp;`, `&amp;`, `&lt;` and the rest are left as written.
+- `cleanEmail(text, { mode })`: for plain-text drafts. Cleans the `Subject:`
+  line and your body; leaves other headers, `>` quoted lines, everything from an
+  `On ... wrote:` line down, and your signature (after the `-- ` line) alone,
+  apart from stripping invisible characters from the signature. MIME-encoded
+  messages are returned unchanged.
+
+### ATS check
+
+```js
+import { checkAts, formatAtsReport } from 'ai-text-hygiene';
+
+const report = checkAts(fs.readFileSync('resume.docx'), { keywords: ['Python', 'C++'] });
+report.ok;        // false when anything high-severity turned up
+report.findings;  // [{ type, severity, message }]
+report.keywords;  // [{ keyword, status: 'found' | 'split' | 'missing' }]
+console.log(formatAtsReport(report));
+```
+
+Checks for the things that quietly break resume parsing: invisible characters,
+symbol-font bullets (private-use characters), tab or space-aligned columns,
+keywords that are missing or split by an invisible character, and smart
+punctuation (low severity). For a `.docx` it also flags contact details that
+only appear in a header or footer, text boxes, tables and images. Takes a
+string, an HTML string with `{ html: true }`, or a `.docx` Buffer. Read-only.
+
 ### CLI
 
 ```bash
@@ -155,7 +253,16 @@ cat draft.txt | npx ai-text-hygiene --conservative
 npx ai-text-hygiene --cadence resume.md        # rhythm report, does not modify
 npx ai-text-hygiene --style cover-letter.md    # word-choice report, does not modify
 cat draft.txt | npx ai-text-hygiene --strip-filler   # apply only the safe swaps
+npx ai-text-hygiene --voice my-writing.txt draft.md  # voice report against your samples
+npx ai-text-hygiene --disclose=drafted cover.md      # clean + append a disclosure line
+npx ai-text-hygiene --write resume.docx              # clean a Word file in place
+npx ai-text-hygiene --write page.html                # tags and code left alone
+cat reply.txt | npx ai-text-hygiene --email          # quoted text and signature left alone
+npx ai-text-hygiene --ats --keywords=Python,SQL resume.docx  # exits 2 if something needs fixing
 ```
+
+The format comes from the file extension (`.html`, `.htm`, `.eml`, `.docx`) or
+`--format=text|html|email|docx`. A `.docx` is only rewritten with `--write`.
 
 ## Guarantees
 

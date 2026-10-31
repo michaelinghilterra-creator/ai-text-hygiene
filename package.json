@@ -1,7 +1,7 @@
 {
   "name": "ai-text-hygiene",
   "version": "0.3.0",
-  "description": "Clean up invisible AI text artifacts (zero-width/format Unicode, em dashes, curly quotes) to plain, ATS-safe text, and flag the AI-writing tells: monotonous cadence, overused vocabulary, filler, cliche openers. Zero dependencies.",
+  "description": "Clean invisible AI text artifacts in plain text, HTML, email drafts and .docx files; flag the AI-writing tells (cadence, overused vocabulary, filler); compare a draft with your own voice; check resumes for ATS parsing hazards; add an optional AI-use disclosure. Zero dependencies.",
   "type": "module",
   "main": "src/index.mjs",
   "exports": "./src/index.mjs",
@@ -35,7 +35,14 @@
     "burstiness",
     "filler",
     "plain-language",
-    "style"
+    "style",
+    "docx",
+    "html",
+    "email",
+    "voice",
+    "stylometry",
+    "disclosure",
+    "resume"
   ],
   "license": "MIT",
   "engines": {
