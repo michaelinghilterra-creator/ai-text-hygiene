@@ -26,5 +26,5 @@ jobs:
             echo "OK: $TITLE"
             exit 0
           fi
-          echo "::error title=PR title is not a Conventional Commit::\"$TITLE\" does not start with a recognized type ($TYPES). Since this repo squash-merges, the title becomes the commit message on main and Release Please reads it. Example: fix: handle empty message body in scorer"
+          echo "::error title=PR title is not a Conventional Commit::\"$TITLE\" does not start with a recognized type ($TYPES). Since this repo squash-merges, the title becomes the commit message on main and the changelog is written from it. Example: fix: handle empty message body in scorer"
           exit 1

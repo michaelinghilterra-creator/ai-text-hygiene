@@ -12,7 +12,7 @@ For anything beyond a small fix, please [open an issue](https://github.com/micha
 2. Create a branch (`git checkout -b feat/my-feature`)
 3. Make your changes
 4. Run the tests: `npm test`
-5. Commit using a [Conventional Commit](https://www.conventionalcommits.org/) message (e.g. `fix: handle mixed line endings in cadence analyzer`) — PR titles are checked for this on merge, since this project uses Release Please for versioning
+5. Commit using a [Conventional Commit](https://www.conventionalcommits.org/) message (e.g. `fix: handle mixed line endings in cadence analyzer`) — PR titles are checked for this on merge, since a squash-merged PR title becomes the commit message on main
 6. Open a Pull Request referencing the issue
 
 ## What to Contribute
@@ -50,6 +50,15 @@ This adds a `Signed-off-by:` line, certifying the
 
 By contributing, you agree your contribution is licensed under the project's
 [MIT LICENSE](LICENSE). You keep the copyright to your own contribution.
+
+## Releases
+
+Releases are cut by hand: bump `version` in `package.json`, add a `CHANGELOG.md`
+entry, merge, then tag `vX.Y.Z` and publish a GitHub release with notes.
+
+Release Please was removed on 2026-10-31. In this repo it needs a separate
+access token to open its release PR, and the manual process is a version bump
+and a tag.
 
 ## Need Help?
 
