@@ -172,3 +172,15 @@ export { disclosureLine, disclose, DISCLOSURE_LEVELS } from './disclose.mjs';
 // DOCX: clean text inside Word documents without changing their layout or
 // media, and extract their text for the existing analysis tools. See docx.mjs.
 export { cleanDocx, extractDocxText } from './docx.mjs';
+
+// HTML: clean ordinary text nodes while keeping tags, attributes, comments,
+// and code-oriented element content unchanged. See html.mjs.
+export { cleanHtml } from './html.mjs';
+
+// Email: clean plain-text drafts while preserving headers, quoted replies,
+// and signatures. See email.mjs.
+export { cleanEmail } from './email.mjs';
+
+// ATS: flag parsing hazards and keyword gaps in plain text, HTML, or DOCX
+// resumes without modifying their contents. See ats.mjs.
+export { checkAts, formatAtsReport } from './ats.mjs';

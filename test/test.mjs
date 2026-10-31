@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { clean, cleanText, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, stripRedundantFiller, analyzeVoice, formatVoiceReport, disclosureLine, disclose, cleanDocx, extractDocxText } from '../src/index.mjs';
+import { clean, cleanText, stripInvisible, cleanConservative, analyzeCadence, formatCadenceReport, analyzeStyle, stripRedundantFiller, analyzeVoice, formatVoiceReport, disclosureLine, disclose, cleanDocx, extractDocxText, cleanHtml, cleanEmail, checkAts, formatAtsReport } from '../src/index.mjs';
 import { crc32, readZip, entryData, writeZip } from '../src/zip.mjs';
 
 let passed = 0, failed = 0;
@@ -257,6 +257,81 @@ fs.unlinkSync(cliDocxPath);
 check(cliDocxNoWrite.status === 1, 'CLI DOCX without write exits 1');
 check(cliDocxWrite.status === 0 && cliDocxXml.includes('Bakery, "open"'), 'CLI DOCX write cleans the file');
 check(cliDocxStyle.status === 0 && cliDocxStyle.stdout.startsWith('style:'), 'CLI DOCX style report renders');
+
+// HTML
+const TWO_HYPHENS = '-' + '-';
+const htmlDirty = '<p title="a' + EM + 'b">' + LDQ + 'Bread' + RDQ + EM + 'fresh</p>';
+eq(cleanHtml(htmlDirty), '<p title="a' + EM + 'b">"Bread", fresh</p>', 'HTML cleans text and keeps attributes exact');
+eq(cleanHtml('<p>&mdash; &#8212; &nbsp; &amp;</p>'), '<p>, &nbsp; &amp;</p>', 'HTML decodes selected dash entities only');
+eq(cleanHtml('<pre>keep ' + EM + '<code>nested ' + LDQ + 'text' + RDQ + '</code></pre>'), '<pre>keep ' + EM + '<code>nested ' + LDQ + 'text' + RDQ + '</code></pre>', 'HTML keeps nested pre and code content');
+eq(cleanHtml('<code>keep ' + EM + '</code><p>fold ' + EM + ' now</p>'), '<code>keep ' + EM + '</code><p>fold, now</p>', 'HTML resumes cleaning after code');
+eq(cleanHtml('<script>if (a' + TWO_HYPHENS + 'b) x = "' + EM + '";</script>'), '<script>if (a' + TWO_HYPHENS + 'b) x = "' + EM + '";</script>', 'HTML keeps script content exact');
+eq(cleanHtml('<!' + TWO_HYPHENS + ' keep ' + EM + ' ' + TWO_HYPHENS + '><p>fold ' + EM + '</p>'), '<!' + TWO_HYPHENS + ' keep ' + EM + ' ' + TWO_HYPHENS + '><p>fold, </p>', 'HTML keeps comments exact');
+eq(cleanHtml(cleanHtml(htmlDirty)), cleanHtml(htmlDirty), 'HTML cleaning is idempotent');
+eq(cleanHtml('<p>a' + EM + ZWSP + 'b</p>', { mode: 'strip' }), '<p>a' + EM + 'b</p>', 'HTML strip mode keeps dash and removes invisible');
+check(cleanHtml(null) === null, 'HTML null passes through');
+let badHtmlMode = false;
+try { cleanHtml('Bread', { mode: 'bogus' }); } catch (error) { badHtmlMode = error instanceof TypeError; }
+check(badHtmlMode, 'HTML unknown mode throws TypeError');
+
+// Email
+const emailDraft = 'Subject: ' + LDQ + 'Bread\r\n\tfor today' + RDQ + '\r\nTo: bakery@example.test\r\nX-Note: keep ' + EM + '\r\n\r\nFresh' + EM + 'today\r\n> quoted ' + EM + '\r\nOn Tuesday, the baker wrote:\r\nold ' + EM;
+const emailClean = cleanEmail(emailDraft);
+check(emailClean.startsWith('Subject: "Bread for today"\r\nTo: bakery@example.test\r\nX-Note: keep ' + EM), 'email cleans and unfolds Subject only');
+check(emailClean.includes('\r\n\r\nFresh, today\r\n> quoted ' + EM), 'email cleans body and keeps quoted line');
+check(emailClean.endsWith('On Tuesday, the baker wrote:\r\nold ' + EM), 'email keeps reply tail exact');
+const signedEmail = 'Garden note ' + EM + '\n' + '-' + '- \nShop ' + EM + ZWSP + '\n555-0104';
+eq(cleanEmail(signedEmail), 'Garden note, \n' + '-' + '- \nShop ' + EM + '\n555-0104', 'email signature strips invisibles only');
+eq(cleanEmail('Bread ' + EM + ' warm'), 'Bread, warm', 'email draft without headers is cleaned');
+eq(cleanEmail('Bread ' + EM + ZWSP + 'warm', { mode: 'strip' }), 'Bread ' + EM + 'warm', 'email strip mode keeps dash and removes invisible');
+const mimeEmail = 'Content-Transfer-Encoding: base64\r\nSubject: ' + LDQ + 'Bread' + RDQ + '\r\n\r\nQnJlYWQ=';
+eq(cleanEmail(mimeEmail), mimeEmail, 'MIME encoded email is unchanged');
+eq(cleanEmail(cleanEmail(emailDraft)), cleanEmail(emailDraft), 'email cleaning is idempotent');
+let badEmailMode = false;
+try { cleanEmail('Bread', { mode: 'bogus' }); } catch (error) { badEmailMode = error instanceof TypeError; }
+check(badEmailMode, 'email unknown mode throws TypeError');
+
+// ATS
+const atsClean = checkAts('Bread baker\nGarden helper', { keywords: ['Bread'] });
+check(atsClean.ok && atsClean.findings.length === 0, 'ATS clean input has no findings');
+check(checkAts('Bread baker\r\nGarden helper\r\n').findings.length === 0, 'ATS does not flag CRLF line endings');
+const bigHtml = '<p>Fresh bread ' + EM + ' daily</p>'.repeat(20000);
+const bigStart = Date.now();
+check(cleanHtml(bigHtml).includes('Fresh bread, daily') && Date.now() - bigStart < 2000, 'cleanHtml stays fast on a large page');
+check(checkAts('Bread' + ZWSP).findings.some((f) => f.type === 'invisible'), 'ATS flags invisible characters');
+check(!checkAts('Bread' + ZWSP).ok, 'ATS high finding makes ok false');
+check(checkAts(C(0xE001)).findings.some((f) => f.type === 'symbol-bullets'), 'ATS flags private-use symbol bullets');
+check(checkAts(C(0x25CF) + ' bread').findings.some((f) => f.type === 'fancy-bullets'), 'ATS flags fancy bullets');
+check(checkAts('Bread ' + EM + ' warm').findings.some((f) => f.type === 'smart-punctuation'), 'ATS flags smart punctuation');
+check(checkAts('Bread    warm\nGarden    tools\nShop    hours').findings.some((f) => f.type === 'columns'), 'ATS flags column-like text');
+const keywordReport = checkAts('C++ baking Node' + ZWSP + '.js', { keywords: ['C++', 'Node.js', 'garden'] });
+eq(keywordReport.keywords.map((k) => k.status).join('|'), 'found|split|missing', 'ATS keyword found, split, and missing statuses');
+check(keywordReport.findings.some((f) => f.type === 'keyword-split') && keywordReport.findings.some((f) => f.type === 'keyword-missing'), 'ATS keyword findings render');
+check(checkAts('<p>Bread</p>', { html: true, keywords: ['Bread'] }).keywords[0].status === 'found', 'ATS strips HTML tags for checks');
+const atsDocxXml = '<w:document><w:body><w:p><w:r><w:t>Bakery helper</w:t></w:r></w:p><w:txbxContent><w:p><w:r><w:t>Garden</w:t></w:r></w:p></w:txbxContent></w:body></w:document>';
+const atsHeaderXml = '<w:hdr><w:p><w:r><w:t>helper@example.test</w:t></w:r></w:p></w:hdr>';
+const atsDocx = checkAts(docxFixture(atsDocxXml, atsHeaderXml));
+check(atsDocx.findings.some((f) => f.type === 'header-footer-contact'), 'ATS flags contact details only in DOCX header');
+check(atsDocx.findings.some((f) => f.type === 'text-box'), 'ATS flags DOCX text boxes');
+const atsStructureXml = '<w:document><w:body><w:p><w:r><w:t>Hardware helper</w:t></w:r></w:p><w:tbl></w:tbl><w:drawing></w:drawing></w:body></w:document>';
+const atsStructure = checkAts(docxFixture(atsStructureXml));
+check(atsStructure.findings.some((f) => f.type === 'tables'), 'ATS flags DOCX tables');
+check(atsStructure.findings.some((f) => f.type === 'images'), 'ATS flags DOCX images');
+check(formatAtsReport(keywordReport).startsWith('ats:') && formatAtsReport(keywordReport).includes('keywords:'), 'ATS report renders');
+
+// HTML, email, and ATS CLI
+const cliHtmlPath = path.join(os.tmpdir(), `ai-text-hygiene-html-${process.pid}.html`);
+fs.writeFileSync(cliHtmlPath, '<html><body><p>Bread ' + EM + ' warm</p></body></html>');
+const cliHtml = spawnSync(process.execPath, [cliPath, '--write', cliHtmlPath], { encoding: 'utf8' });
+const cliHtmlText = fs.readFileSync(cliHtmlPath, 'utf8');
+fs.unlinkSync(cliHtmlPath);
+check(cliHtml.status === 0 && cliHtmlText.includes('<p>Bread, warm</p>'), 'CLI HTML write cleans text and keeps tags');
+const cliEmail = spawnSync(process.execPath, [cliPath, '--email'], { input: 'Bread ' + EM + '\n> keep ' + EM, encoding: 'utf8' });
+check(cliEmail.status === 0 && cliEmail.stdout === 'Bread, \n> keep ' + EM, 'CLI email stdin keeps quoted line');
+const cliAtsMissing = spawnSync(process.execPath, [cliPath, '--ats', '--keywords=Node.js,baking'], { input: 'Node.js bread', encoding: 'utf8' });
+check(cliAtsMissing.status === 2 && cliAtsMissing.stdout.startsWith('ats:'), 'CLI ATS exits 2 for missing keyword');
+const cliAtsClean = spawnSync(process.execPath, [cliPath, '--ats', '--keywords=Node.js,baking'], { input: 'Node.js baking', encoding: 'utf8' });
+check(cliAtsClean.status === 0 && cliAtsClean.stdout.startsWith('ats: ok'), 'CLI ATS exits 0 when clean and keywords found');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
