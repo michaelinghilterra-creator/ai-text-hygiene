@@ -21,6 +21,40 @@ make honest AI-assisted text read cleanly and parse correctly. On job materials 
 particular, the thing that actually reads as machine-written is *cadence* (every
 sentence the same shape and length), and no character scrub fixes that.
 
+## Watermarks: questions people ask
+
+**What is a text watermark?** Some model providers build a statistical pattern
+into the words their models choose. You can't see it, and it adds no characters.
+Someone holding the provider's detection key can check a long enough passage and
+tell, with some confidence, that the model wrote it. Anthropic applies one to
+Claude output and is extending it to more Claude models from November 3, 2026.
+Google's SynthID Text is another example.
+
+**Does this tool remove it?** No. This library changes characters and
+punctuation, not word choice. Its only word-level fix swaps a short list of
+filler phrases ("in order to" becomes "to"), which is not designed to remove
+a watermark and is not a way to do so. If you need text that is provably
+human-written, write it yourself.
+
+**Then what were all those invisible characters?** Mostly artifacts:
+zero-width spaces, byte-order marks, and odd spaces that come along with
+generated or copy-pasted text. People often mistake them for a watermark. They
+are worth stripping because they break ATS keyword parsing and plain-text
+pipelines, which is what `stripInvisible` and `clean` are for.
+
+**Who can check for a watermark?** It depends on the provider. At launch,
+Anthropic limits checking to groups such as regulators, journalists,
+fact-checkers, and researchers.
+
+**Does the watermark identify me?** Per Anthropic, it carries no information
+about the user, their organization, or their conversations. It indicates
+that a Claude model produced the text.
+
+**So how should I use AI help honestly?** Treat it like any other editor. Review
+what you send, make it sound like you (the voice report below points at the
+sentences that don't), and say so when someone asks or when you'd rather be
+upfront (`disclose` adds a one-line note).
+
 ## Install
 
 ```bash
